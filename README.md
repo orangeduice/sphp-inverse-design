@@ -57,7 +57,8 @@ uv run python -m sphp_inverse.resim <inference dir>
   simulate), the target spectrum and a metadata file. The metadata records the z samples and validity flags:
   inside the training bounds, aspect ratio, and pillar gap.
 - `hpc submit` uploads the job scripts and every parameter file, then submits one SLURM job per run. This takes two
-  SSH connections in total. Remove `--dry-run` to really submit. `hpc status` shows your queue.
+  SSH connections in total, with a 1 s pause between submissions (change it with `--pause`). Remove `--dry-run`
+  to really submit. `hpc status` shows your queue.
 - `hpc fetch` downloads `<ID>_dataout.csv` into each run folder that doesn't have it yet. It searches the
   `results_dirs` listed in `config.json`.
 - Transfers use `rsync` when it is installed. Without it (e.g. plain Windows) they fall back to `scp` and an

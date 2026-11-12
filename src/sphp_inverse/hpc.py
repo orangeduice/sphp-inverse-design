@@ -132,10 +132,11 @@ def comsol_files(with_models=False):
     return sorted(COMSOL_DIR.glob("*.sh")) + (sorted(COMSOL_DIR.glob("*.mph")) if with_models else [])
 
 
-def submit_resim(cfg, run_dirs, mph, with_models=False, dry_run=False, script=RESIM_SCRIPT):
+def submit_resim(cfg, run_dirs, mph, with_models=False, dry_run=False, script=RESIM_SCRIPT, pause=1.0):
     """Upload the job scripts and every <ID>_params.csv, then submit one re-simulation job per run.
 
-    Two SSH connections in total, however many runs: one transfer, one command that calls sbatch for each ID.
+    Two SSH connections in total, however many runs: one transfer, one command that calls sbatch for each ID,
+    waiting `pause` seconds after each submission (submitting many jobs with no pause gave errors on Iridis).
     Runs that already have results are skipped. Returns {run_id: SLURM job id} (empty in dry-run)."""
     todo = {}
     for d in map(Path, run_dirs):
@@ -157,8 +158,8 @@ def submit_resim(cfg, run_dirs, mph, with_models=False, dry_run=False, script=RE
         sbatch += [f"--mail-user={cfg['mail_user']}", "--mail-type=END,FAIL"]
     sbatch = " ".join(shlex.quote(x) for x in sbatch + [script])
     remote = (f"cd {shlex.quote(cfg['remote_dir'])} && for id in {' '.join(todo)}; "
-              f"do {sbatch} \"$id\" {shlex.quote(mph)}; done")
-    print(f"--> submitting {len(todo)} job(s)")
+              f"do {sbatch} \"$id\" {shlex.quote(mph)}; sleep {float(pause):g}; done")
+    print(f"--> submitting {len(todo)} job(s), {float(pause):g} s apart")
     res = _run(["ssh", _host(cfg), remote], dry_run, capture_output=True, text=True)
     if res is None:
         return {}
@@ -197,6 +198,7 @@ def main():
     s.add_argument("paths", nargs="+", help="run_<ID> folders, or a folder containing them")
     s.add_argument("--mph", required=True, help="resim model file name (in remote_dir), full-range or reduced-range")
     s.add_argument("--sync-models", action="store_true", help="also upload the local .mph files")
+    s.add_argument("--pause", type=float, default=1.0, help="seconds to wait between job submissions (default 1)")
     s.add_argument("--dry-run", action="store_true", help="print the commands without connecting")
     f = sub.add_parser("fetch", help="download <ID>_dataout.csv for runs that do not have it yet")
     f.add_argument("paths", nargs="+")
@@ -207,7 +209,7 @@ def main():
     cfg = load_config(a.config)
     print(f"cluster: {_host(cfg)}   transfer: {'rsync' if have_rsync() else 'scp / ssh+tar (rsync not found)'}")
     if a.cmd == "submit":
-        submit_resim(cfg, _run_dirs(a.paths), a.mph, with_models=a.sync_models, dry_run=a.dry_run)
+        submit_resim(cfg, _run_dirs(a.paths), a.mph, with_models=a.sync_models, dry_run=a.dry_run, pause=a.pause)
     elif a.cmd == "fetch":
         fetch_results(cfg, _run_dirs(a.paths), dry_run=a.dry_run)
     else:

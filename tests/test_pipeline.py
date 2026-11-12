@@ -130,7 +130,7 @@ def test_submit_and_fetch_commands(tmp_path, monkeypatch, capsys, rsync):
     assert ("rsync -av -e ssh" in out) == rsync and ("scp -p" in out) == (not rsync)
     assert "ab1c23@cluster.example.org:/home/ab1c23/micropillar_resim/" in out
     assert "js_micropillar_resim.sh" in out and "611125138_params.csv" in out   # scripts + parameters in one transfer
-    assert 'cd /home/ab1c23/micropillar_resim && for id in 611125138; do sbatch js_micropillar_resim.sh "$id" model_rr.mph; done' in out
+    assert 'cd /home/ab1c23/micropillar_resim && for id in 611125138; do sbatch js_micropillar_resim.sh "$id" model_rr.mph; sleep 1; done' in out
     hpc.fetch_results(CFG, [run], dry_run=True)
     out = capsys.readouterr().out
     assert "611125138_dataout.csv" in out or "--files-from" in out

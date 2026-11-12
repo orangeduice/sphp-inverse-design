@@ -11,7 +11,8 @@ Locally we only prepare design/parameter CSVs and parse the exported `*_dataout.
 | `js_micropillar_datagen.sh` | SLURM job: set params → solve (6 × 32 CPUs, 32 h) → export → delete solved `.mph` |
 | `js_micropillar_resim.sh` | SLURM job: set params → solve (4 h) → export; keeps the solved `.mph` |
 
-`.mph` files are git-ignored for now. Whether to publish the COMSOL models is still to be decided.
+`.mph` files are git-ignored for now. Whether to publish the COMSOL models is still to be decided. Note that the
+current `.mph` files contain the Iridis username (embedded paths), so clean them before publishing.
 
 ## How jobs are sent
 

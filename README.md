@@ -10,16 +10,26 @@ conditional variational autoencoder (cVAE). Part of the MINAS project (WP2, Mile
 
 | Path | Contents |
 |---|---|
-| `src/` | data loading, models (geometry cVAE; optional spectra cVAE; forward model), train / infer / metrics |
+| `src/sphp_inverse/` | data loading, models (geometry cVAE; optional spectra cVAE; forward model), train / infer / metrics |
 | `configs/` | one YAML per experiment |
 | `comsol/` | COMSOL models and SLURM job scripts (run on the Iridis HPC only); see `comsol/README.md` |
 | `figures/` | one script per thesis/paper figure |
 | `tests/` | parity and smoke tests |
+| `parity/` | export of the Keras 2.15 reference model |
 
 ## Setup
 
-1. Copy `config.example.json` to `config.json` and fill in your HPC details. `config.json` is git-ignored.
-2. The environment and the rest of the setup are still to come.
+1. Install [uv](https://docs.astral.sh/uv/). Then run `uv sync`. This installs Python 3.12 and PyTorch with CUDA 12.8,
+   which supports Blackwell GPUs such as the RTX 5070 Ti.
+2. Copy `config.example.json` to `config.json` and fill in your HPC details. `config.json` is git-ignored.
+3. The dataset is not in git. Tests look for `../data/2026_04_15_full_pisa_data.h5` by default; override this with
+   `SPHP_DATA=<path>`.
+4. Run the tests: `uv run --group dev pytest`.
+
+## Status of the PyTorch port
+
+The geometry cVAE in `src/sphp_inverse/models/cvae.py` reproduces the original Keras 2.15 model exactly when given
+its weights. See `parity/README.md`. Training parity is the next step.
 
 ## Related work
 

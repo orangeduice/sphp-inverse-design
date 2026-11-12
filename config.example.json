@@ -1,0 +1,7 @@
+{
+  "hostname": "iridis6.soton.ac.uk",
+  "username": "your_username",
+  "remote_dir": "/home/your_username/sphp-inverse-design",
+  "scratch_dir": "/scratch/your_username",
+  "mail_user": "you@example.ac.uk"
+}

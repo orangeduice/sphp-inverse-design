@@ -1,0 +1,28 @@
+# Local configuration (copy config.example.json -> config.json)
+config.json
+
+# COMSOL models: publishing not yet decided
+*.mph
+
+# Data, trained models and experiment outputs live outside git (../data, ../runs)
+data/
+runs/
+*.h5
+*.pkl
+*.pth
+*.pt
+*.keras
+checkpoints/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.ipynb_checkpoints/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

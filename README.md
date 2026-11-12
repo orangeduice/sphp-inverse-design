@@ -29,7 +29,41 @@ conditional variational autoencoder (cVAE). Part of the MINAS project (WP2, Mile
 ## Status of the PyTorch port
 
 The geometry cVAE in `src/sphp_inverse/models/cvae.py` reproduces the original Keras 2.15 model exactly when given
-its weights. See `parity/README.md`. Training parity is the next step.
+its weights, and trains to the same accuracy with the same recipe. See `parity/README.md`.
+
+## Workflow: train → suggest designs → re-simulate → score
+
+```bash
+uv run python -m sphp_inverse.train --config configs/geometry_cvae_reference.yaml --data <dataset.h5> --out <run dir> --seed 0
+```
+
+```bash
+uv run python -m sphp_inverse.inference --model <run dir> --data <dataset.h5> --test-idx 138 169 --n 5 --out <inference dir> --category 5
+```
+
+```bash
+uv run python -m sphp_inverse.hpc submit <inference dir> --mph 2026_03_02_micropillar_resim_v64.mph --dry-run
+```
+
+```bash
+uv run python -m sphp_inverse.hpc fetch <inference dir>
+```
+
+```bash
+uv run python -m sphp_inverse.resim <inference dir>
+```
+
+- `inference` writes one `run_<ID>/` folder per target, containing `<ID>_params.csv` (the designs COMSOL will
+  simulate), the target spectrum and a metadata file. The metadata records the z samples and validity flags:
+  inside the training bounds, aspect ratio, and pillar gap.
+- `hpc submit` uploads the job scripts and every parameter file, then submits one SLURM job per run. This takes two
+  SSH connections in total. Remove `--dry-run` to really submit. `hpc status` shows your queue.
+- `hpc fetch` downloads `<ID>_dataout.csv` into each run folder that doesn't have it yet. It searches the
+  `results_dirs` listed in `config.json`.
+- Transfers use `rsync` when it is installed. Without it (e.g. plain Windows) they fall back to `scp` and an
+  `ssh … tar` stream.
+- The COMSOL models have their file locations hard-coded: the resim model reads `~/micropillar_resim/<ID>_params.csv`,
+  so `remote_dir` in `config.json` must point there.
 
 ## Related work
 

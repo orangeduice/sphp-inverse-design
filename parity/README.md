@@ -82,5 +82,5 @@ The means agree within the seed-to-seed spread on every metric: there is no sign
 overfitting that affected the earlier PyTorch attempt. PyTorch shows a somewhat larger spread between seeds
 (3 vs 5 runs is too few to say whether that is real).
 
-Still to do for the decision gate: re-simulate designs from the PyTorch model in COMSOL on the same targets as the
+Still to do for the final decision (PyTorch vs Keras): re-simulate designs from the PyTorch model in COMSOL on the same targets as the
 Keras model.

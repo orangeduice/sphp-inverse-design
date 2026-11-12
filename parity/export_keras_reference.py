@@ -50,6 +50,8 @@ def main():
     ap.add_argument("--latent", type=int, default=8)
     ap.add_argument("--blocks", type=int, default=1)
     ap.add_argument("--n-batch", type=int, default=64)
+    ap.add_argument("--freq-slice", type=int, nargs=2, default=None,
+                    help="e.g. 35 110 for models trained on the reduced range")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
 
@@ -84,6 +86,8 @@ def main():
     with h5py.File(a.data, "r") as f:
         geo = np.array(f["geo"], dtype=np.float32)
         R = np.array(f["R"], dtype=np.float32)
+    if a.freq_slice:
+        R = R[:, a.freq_slice[0]:a.freq_slice[1]]
     scaler = StandardScaler().fit(geo)
     geo_s = scaler.transform(geo)[..., None].astype(np.float32)
     R_c = R[..., None]

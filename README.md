@@ -13,7 +13,7 @@ conditional variational autoencoder (cVAE). Part of the MINAS project (WP2, Mile
 | `src/sphp_inverse/` | data loading, models (geometry cVAE; optional spectra cVAE; forward model), train / infer / metrics |
 | `configs/` | one YAML per experiment |
 | `comsol/` | COMSOL models and SLURM job scripts (run on the Iridis HPC only); see `comsol/README.md` |
-| `figures/` | one script per thesis/paper figure |
+| `figures/` | one script per thesis/paper figure (`fig3_bruteforce.py` so far) |
 | `tests/` | parity and smoke tests |
 | `parity/` | export of the Keras 2.15 reference model |
 
@@ -66,6 +66,30 @@ uv run python -m sphp_inverse.resim <inference dir>
   `ssh … tar` stream.
 - The COMSOL models have their file locations hard-coded: the resim model reads `~/micropillar_resim/<ID>_params.csv`,
   so `remote_dir` in `config.json` must point there.
+
+## Brute-force baseline (report Fig. 3)
+
+The brute-force search finds out which single-dip targets the dataset can already reach. For each of 18 Gaussian dip
+targets (FWHM 0.2 THz, depth 0.8, baseline 0.95, centres 25.975–27.625 THz), it picks the dataset spectrum with the
+lowest MSE inside 25.875–27.725 THz. Then it measures that spectrum's dip FWHM and prominence.
+
+```bash
+uv run python -m sphp_inverse.baselines bruteforce --data <dataset.h5> --out <dir>
+```
+
+```bash
+uv run python figures/fig3_bruteforce.py <dir>
+```
+
+- `baselines bruteforce` writes `candidates.csv`, `spectra.npz` and `summary.json` to `<dir>`. On the canonical
+  dataset it gives the report's numbers: mean FWHM 0.2250 THz, mean prominence 0.6643, linewidth ratio 0.05624 (mean
+  FWHM / 4 THz). `tests/test_baselines.py` checks these numbers and the 18 geometries in
+  `tests/data/fig3_reference.csv`, which holds the original run's results.
+- `--min-prominence 0.5` marks shallow matches as rejected and leaves them out of the means. Use it to count only
+  isolated dips. The default (0) reproduces the report.
+- To give the cVAE the same targets, run `inference --targets fig3` instead of `--test-idx`. `resim` reports the best
+  design's FWHM, FWHM error (cm⁻¹) and prominence next to the MSE, so the two methods can be compared directly.
+- Dip settings live in `src/sphp_inverse/targets.py` (`FIG3`). Dip metrics live in `src/sphp_inverse/metrics.py`.
 
 ## Related work
 

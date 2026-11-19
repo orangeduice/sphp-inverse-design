@@ -6,6 +6,7 @@ config.json
 
 # Data, trained models and experiment outputs live outside git (../data, ../runs)
 data/
+!tests/data/
 runs/
 *.h5
 *.pkl

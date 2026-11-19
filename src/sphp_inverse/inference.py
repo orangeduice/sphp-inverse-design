@@ -2,6 +2,10 @@
 
     uv run python -m sphp_inverse.inference --model <run dir or Keras export dir> --data <h5> \
         --test-idx 138 169 190 --n 5 --out <dir> --category 5
+    uv run python -m sphp_inverse.inference --model <run dir> --data <h5> --targets fig3 --n 5 --out <dir> --category 6
+
+Targets are either test-set spectra (--test-idx) or a named synthetic set (--targets fig3: the 18 Gaussian dips of
+the brute-force baseline, so the cVAE and the baseline are scored on the same targets).
 
 Each target gets a folder  <out>/run_<ID>/  with the same files as the original Keras workflow:
   <ID>_params.csv                     physical designs, with the 2-line header COMSOL's set_params_call expects
@@ -25,6 +29,7 @@ from .data import GEO_NAMES, GEO_UNITS, fit_geo_scaler, load_dataset, reference_
 from .ids import encode_id
 from .keras_import import load_keras_weights
 from .models.cvae import CVAEConfig, GeometryCVAE
+from .targets import TARGET_SETS
 
 PARAMS_HEADER = ", ".join(GEO_NAMES) + "\n" + ", ".join(GEO_UNITS)
 
@@ -86,7 +91,9 @@ def main():
     ap.add_argument("--model", required=True)
     ap.add_argument("--data", required=True)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--test-idx", type=int, nargs="+", required=True, help="targets = test-set spectra at these positions")
+    ap.add_argument("--test-idx", type=int, nargs="+", default=None, help="targets = test-set spectra at these positions")
+    ap.add_argument("--targets", choices=sorted(TARGET_SETS), default=None,
+                    help="named synthetic target set instead of test spectra (fig3 = the 18 brute-force dip targets)")
     ap.add_argument("--n", type=int, default=5)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--category", type=int, default=5, help="ID category digit (keep one per model/experiment)")
@@ -96,31 +103,42 @@ def main():
     ap.add_argument("--n-blocks", type=int, default=None, help="only for Keras exports")
     a = ap.parse_args()
 
+    if (a.test_idx is None) == (a.targets is None):
+        ap.error("give exactly one of --test-idx or --targets")
+
     ds = load_dataset(a.data)
-    R, freq = ds.R, ds.freq
-    if a.freq_slice:
-        R, freq = R[:, a.freq_slice[0]:a.freq_slice[1]], freq[a.freq_slice[0]:a.freq_slice[1]]
-    split = reference_split(len(ds.geo))
+    sl = slice(*a.freq_slice) if a.freq_slice else slice(None)
+    R, freq = ds.R[:, sl], ds.freq[sl]
     model, scaler = load_model(a.model, n_blocks=a.n_blocks, n_freq=R.shape[1])
     scaler = scaler or fit_geo_scaler(ds.geo)  # Keras reference: scaler fitted on all rows
 
-    for idx in a.test_idx:
-        target = R[split.test[idx]]
+    if a.targets:
+        spec = TARGET_SETS[a.targets]
+        full = spec.spectra(ds.freq)  # built on the full grid, then cut like the training spectra
+        jobs = [(i, full[i, sl], {"target_set": a.targets, "target_source": f"targets.{a.targets.upper()}",
+                                  "centre_THz": float(c), "target_spec": spec.to_dict()})
+                for i, c in enumerate(spec.centres())]
+    else:
+        split = reference_split(len(ds.geo))
+        jobs = [(idx, R[split.test[idx]], {"target_set": "test", "target_source": "test split (reference_split)",
+                                          "dataset_row": int(split.test[idx])}) for idx in a.test_idx]
+
+    for idx, target, target_meta in jobs:
         z, z_source = None, f"default_rng({a.seed})"
         if a.z_from:
             hits = sorted(Path(a.z_from).glob(f"run_*/*_metadata.json"))
-            hits = [h for h in hits if json.load(open(h)).get("target_id") == str(idx)]
+            hits = [h for h in hits if (m := json.load(open(h))).get("target_id") == str(idx)
+                    and m.get("target_set", "test") == target_meta["target_set"]]
             if not hits:
-                raise FileNotFoundError(f"no earlier run for test index {idx} in {a.z_from}")
+                raise FileNotFoundError(f"no earlier run for {target_meta['target_set']} target {idx} in {a.z_from}")
             z = np.array(json.load(open(hits[0]))["inference_params"]["z_samples"])
             z_source = f"reused from {hits[0].name}"
         designs, z = suggest_designs(model, target, a.n, z, a.seed)
         run_id = encode_id(a.category, idx)
         run, flags = save_inference_run(a.out, run_id, designs, scaler, target, freq, {
-            "target_id": str(idx), "target_source": "test split (reference_split)", "dataset_row": int(split.test[idx]),
-            "model": str(Path(a.model).resolve()),
+            "target_id": str(idx), **target_meta, "model": str(Path(a.model).resolve()),
             "inference_params": {"num_predictions": len(z), "z_source": z_source, "z_samples": z.tolist()}})
-        print(f"run {run_id}  test idx {idx:3d}  in_bounds {int(flags['in_bounds'].sum())}/{len(z)}  "
+        print(f"run {run_id}  {target_meta['target_set']} target {idx:3d}  in_bounds {int(flags['in_bounds'].sum())}/{len(z)}  "
               f"gap>=0.5 {int(flags['gap_ok'].sum())}/{len(z)}  min gap {flags['min_gap'].min():.2f} um  -> {run}")
 
 

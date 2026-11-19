@@ -13,7 +13,9 @@ from pathlib import Path
 
 import numpy as np
 
-THZ_TO_CM = 33.35641  # 1 THz in cm^-1
+from .metrics import THZ_TO_CM, dip_metrics  # noqa: F401  (THZ_TO_CM re-exported for existing callers)
+
+DIP_REGION_LEVEL = 0.9  # same rule as the brute-force baseline: the dip is searched where target < 0.9
 
 
 def read_dataout(path):
@@ -43,15 +45,21 @@ def score_run(run_dir):
     target = np.loadtxt(tgt, delimiter=",")
     t_freq, t_R = target[:, 0], target[:, 1]
     t_dip = t_freq[np.argmin(t_R)]
-    mse, dip_err = [], []
+    region = t_R < DIP_REGION_LEVEL  # where to look for the dip (whole spectrum if the target never drops below)
+    t_m = dip_metrics(t_freq, t_R, region)
+    mse, dip_err, designs = [], [], []
     for _, f, R in read_dataout(out):
         R_on_target = np.interp(t_freq, f, R)
         mse.append(float(np.mean((R_on_target - t_R) ** 2)))
         dip_err.append(float(abs(f[np.argmin(R)] - t_dip) * THZ_TO_CM))
+        designs.append(R_on_target)
     best = int(np.argmin(mse))
+    b_m = dip_metrics(t_freq, designs[best], region)
     return {"run": run_id, "n_designs": len(mse), "best_mse": mse[best], "mean_mse": float(np.mean(mse)),
-            "target_dip_THz": float(t_dip), "best_dip_err_cm": dip_err[best], "mse_per_design": mse,
-            "dip_err_per_design_cm": dip_err}
+            "target_dip_THz": float(t_dip), "best_dip_err_cm": dip_err[best],
+            "target_fwhm_THz": t_m.fwhm, "best_fwhm_THz": b_m.fwhm,
+            "best_fwhm_err_cm": abs(b_m.fwhm - t_m.fwhm) * THZ_TO_CM, "best_prominence": b_m.prominence,
+            "mse_per_design": mse, "dip_err_per_design_cm": dip_err}
 
 
 def score_folder(folder):
@@ -64,6 +72,8 @@ def summarise(scores, kpi_cm=4.0):
     return {"targets": len(scores), "mean_best_mse": float(np.mean([s["best_mse"] for s in scores])),
             "median_best_mse": float(np.median([s["best_mse"] for s in scores])),
             "mean_mse_all_designs": float(np.mean([s["mean_mse"] for s in scores])),
+            "mean_best_fwhm_THz": float(np.mean([s["best_fwhm_THz"] for s in scores])),
+            "mean_best_prominence": float(np.mean([s["best_prominence"] for s in scores])),
             f"dip_within_{kpi_cm:g}cm": int(sum(s["best_dip_err_cm"] <= kpi_cm for s in scores))}
 
 

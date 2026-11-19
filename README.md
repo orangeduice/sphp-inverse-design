@@ -60,7 +60,8 @@ uv run python -m sphp_inverse.resim <inference dir>
   SSH connections in total, with a 1 s pause between submissions (change it with `--pause`). Remove `--dry-run`
   to really submit. `hpc status` shows your queue.
 - `hpc fetch` downloads `<ID>_dataout.csv` into each run folder that doesn't have it yet. It searches the
-  `results_dirs` listed in `config.json`.
+  `results_dirs` listed in `config.json`; on Iridis the resim results are in
+  `/iridisfs/scratch/<user>/COMSOL_pisa_resim/data_out/`.
 - Transfers use `rsync` when it is installed. Without it (e.g. plain Windows) they fall back to `scp` and an
   `ssh … tar` stream.
 - The COMSOL models have their file locations hard-coded: the resim model reads `~/micropillar_resim/<ID>_params.csv`,

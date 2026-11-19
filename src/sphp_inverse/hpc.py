@@ -11,7 +11,8 @@ to a single `ssh ... tar` stream, so every step is still one SSH connection.
 
 Where files go is fixed by the COMSOL models themselves (paths are hard-coded in their methods):
   resim model reads   <remote_dir>/<ID>_params.csv        (remote_dir must be ~/micropillar_resim)
-  results are written <one of results_dirs>/<ID>_dataout.csv
+  results are written /iridisfs/scratch/<user>/COMSOL_pisa_resim/data_out/<ID>_dataout.csv
+                      (list that folder in results_dirs; fetch searches each entry in turn)
 """
 from __future__ import annotations
 

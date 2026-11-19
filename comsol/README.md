@@ -23,7 +23,11 @@ the `.mph` files) to the remote directory in `config.json`, then runs `sbatch` t
 sbatch --mail-user=<email> --mail-type=ALL js_micropillar_resim.sh <RUN_ID> 2026_06_29_micropillar_resim_rr_v64.mph
 ```
 
-Nothing user-specific is hard-coded. Output goes to `/scratch/$USER/...` unless an `OUT_DIR` is given, and the
-e-mail address comes from `config.json` at submit time.
+Nothing user-specific is hard-coded in the job scripts. The solved `.mph` goes to `/scratch/$USER/...` unless an
+`OUT_DIR` is given, and the e-mail address comes from `config.json` at submit time.
+
+The exported spectra are written by the COMSOL model itself (the path is set inside its `data_out_call` method),
+to `/iridisfs/scratch/<user>/COMSOL_pisa_resim/data_out/<RUN_ID>_dataout.csv`. `hpc fetch` downloads them from
+there: set that folder in `results_dirs` in `config.json`.
 
 The original hard-coded scripts are kept for provenance in the parent working folder (outside this repo).

@@ -114,18 +114,31 @@ class CVAEConfig:
     design_filters: int = 128
     dense_units: int = 256
     shared_eps: bool = True  # reproduce the Keras SamplingRNG (one epsilon per batch)
+    cond_mask: bool = False  # condition = [spectrum * mask, mask] ("match here, ignore elsewhere"); see masked_condition
+
+
+def masked_condition(spectrum, mask=None):
+    """Condition for a cond_mask model: (N, 2, F) = [spectrum * mask, mask]. mask=None means the whole spectrum
+    matters (mask of ones). mask is 1 where the target must be matched and 0 where anything is acceptable."""
+    if mask is None:
+        mask = torch.ones_like(spectrum)
+    mask = mask.to(spectrum.dtype).expand_as(spectrum)
+    return torch.stack([spectrum * mask, mask], dim=1)
 
 
 class SpectrumBranch(nn.Module):
     def __init__(self, cfg: CVAEConfig):
         super().__init__()
-        chs = (1,) + tuple(cfg.spec_filters)
+        self.cond_mask = cfg.cond_mask
+        chs = (2 if cfg.cond_mask else 1,) + tuple(cfg.spec_filters)
         self.blocks = nn.Sequential(*[resblock_sequence_down(chs[i], chs[i + 1], cfg.n_blocks)
                                       for i in range(len(cfg.spec_filters))])
         self.out_features = keras_conv_out_len(cfg.n_freq, len(cfg.spec_filters)) * cfg.spec_filters[-1]
 
-    def forward(self, spectrum):  # (N, F) -> (N, features)
-        return flatten_channels_last(self.blocks(spectrum.unsqueeze(1)))
+    def forward(self, spectrum):  # (N, F) or, for cond_mask models, (N, 2, F) -> (N, features)
+        if spectrum.dim() == 2:
+            spectrum = masked_condition(spectrum) if self.cond_mask else spectrum.unsqueeze(1)
+        return flatten_channels_last(self.blocks(spectrum))
 
 
 class Encoder(nn.Module):
@@ -185,7 +198,7 @@ class GeometryCVAE(nn.Module):
         return self.decoder(z, spectrum), mu, logvar
 
     @torch.no_grad()
-    def sample(self, spectrum, n_samples=1, generator=None):
+    def sample(self, spectrum, n_samples=1, generator=None):  # spectrum (N, F), or (N, 2, F) masked condition
         """Inverse design: z ~ N(0, I), decode with the target spectrum. Returns (n_samples, N, 6) scaled geometry."""
         self.eval()
         out = []

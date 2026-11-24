@@ -1,6 +1,8 @@
 # Local configuration (copy config.example.json -> config.json)
 config.json
 
+configs/experiments/
+
 # COMSOL models: publishing not yet decided
 *.mph
 

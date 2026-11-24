@@ -22,6 +22,7 @@ import json
 import re
 import shlex
 import shutil
+import socket
 import subprocess
 import tarfile
 import time
@@ -191,6 +192,16 @@ def _run_dirs(paths):
     return out
 
 
+def check_reachable(cfg):
+    """Fail early with a clear message if the cluster's hostname does not resolve (Iridis is only visible on the
+    university network, so this usually means the VPN is not connected)."""
+    try:
+        socket.getaddrinfo(cfg["hostname"], 22)
+    except socket.gaierror:
+        raise SystemExit(f"Cannot resolve {cfg['hostname']}. Iridis is only reachable on the university network: "
+                         "connect to the VPN and try again.")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--config", default=None)
@@ -208,6 +219,8 @@ def main():
     st.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()
     cfg = load_config(a.config)
+    if not a.dry_run:
+        check_reachable(cfg)
     print(f"cluster: {_host(cfg)}   transfer: {'rsync' if have_rsync() else 'scp / ssh+tar (rsync not found)'}")
     if a.cmd == "submit":
         submit_resim(cfg, _run_dirs(a.paths), a.mph, with_models=a.sync_models, dry_run=a.dry_run, pause=a.pause)

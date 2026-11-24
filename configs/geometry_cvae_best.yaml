@@ -1,0 +1,26 @@
+# Geometry cVAE chosen 2026-11-23 by surrogate-based model selection (see LOG.md):
+# per-sample epsilon, beta = 0.01, 80 + 40 epochs. Best run: ../runs/exp/eps_sample_beta1e-2_long_seed0
+
+test_fraction: 0.05      # sklearn train_test_split, seed below
+val_fraction: 0.3        # Keras validation_split: last 30 % of the shuffled train+val rows
+split_seed: 42
+scaler_fit: all          # reference fits the geometry scaler on all samples
+freq_slice: null         # full 25-29 THz range; [35, 110] = reduced range 25.875-27.725 THz
+
+latent_dim: 8
+n_blocks: 1
+
+lr: 0.0001
+weight_decay: 0.004
+adam_eps: 1.0e-7
+
+reduce_lr_factor: 0.66
+reduce_lr_patience: 5
+reduce_lr_min_delta: 1.0e-4
+early_stop_patience: 15
+restore_best: true
+
+allow_tf32: false        # exact float32 for parity runs
+shared_eps: false
+beta: 0.01
+rounds: [[64, 80], [128, 40]]

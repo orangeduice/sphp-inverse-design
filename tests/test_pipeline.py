@@ -176,3 +176,8 @@ def test_config_validation(tmp_path):
         hpc.load_config(p)
     p.write_text(json.dumps({"hostname": "h", "username": "u", "remote_dir": "/home/u/micropillar_resim"}))
     assert hpc.load_config(p)["results_dirs"] == ["/home/u/micropillar_resim"]
+
+
+def test_unresolvable_host_gives_vpn_message():
+    with pytest.raises(SystemExit, match="VPN"):
+        hpc.check_reachable({"hostname": "no-such-host.invalid"})

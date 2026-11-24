@@ -37,6 +37,12 @@ class TrainConfig:
     latent_dim: int = 8
     n_blocks: int = 1
     shared_eps: bool = True            # reference: one epsilon per batch
+    # masked conditioning ("match here, ignore elsewhere"): during training, a fraction of conditions keep only a
+    # random contiguous care window of the spectrum (the rest is zeroed and flagged in a mask channel)
+    cond_mask: bool = False
+    mask_prob: float = 0.7             # fraction of training conditions that get a care window (others: whole spectrum)
+    mask_width_thz: list = field(default_factory=lambda: [0.5, 2.0])   # care-window width range
+    mask_dip_centred: float = 0.5      # fraction of windows centred on a dip (sampled with weight (1 - R)^4)
     # loss / optimiser (Keras AdamW defaults)
     beta: float = 1e-3
     lr: float = 1e-4
@@ -63,6 +69,26 @@ def _git_hash():
                                        stderr=subprocess.DEVNULL).strip()
     except Exception:
         return None
+
+
+def random_care_masks(y, cfg: TrainConfig, step_thz: float, generator=None):
+    """(N, F) spectra -> (N, 2, F) masked conditions with random care windows (see TrainConfig)."""
+    from .models.cvae import masked_condition
+
+    n, f = y.shape
+    dev = y.device
+    u = lambda: torch.rand(n, device=dev, generator=generator)
+    w_lo, w_hi = (w / step_thz for w in cfg.mask_width_thz)
+    width = w_lo + (w_hi - w_lo) * u()
+    uniform_centre = u() * (f - 1)
+    weights = (1 - y).clamp(min=0) ** 4 + 1e-6
+    dip_centre = torch.multinomial(weights, 1, generator=generator).squeeze(1).to(y.dtype)
+    centre = torch.where(u() < cfg.mask_dip_centred, dip_centre, uniform_centre)
+    grid = torch.arange(f, device=dev, dtype=y.dtype)
+    window = ((grid[None] - centre[:, None]).abs() <= width[:, None] / 2).to(y.dtype)
+    use = (u() < cfg.mask_prob).to(y.dtype)[:, None]
+    mask = use * window + (1 - use)
+    return masked_condition(y, mask)
 
 
 @torch.no_grad()
@@ -122,7 +148,8 @@ def train(cfg: TrainConfig, data_path, out_dir, seed=0, device=None, verbose=Tru
 
     # ---- model, optimiser, callbacks
     model = GeometryCVAE(CVAEConfig(n_freq=R.shape[1], latent_dim=cfg.latent_dim, n_blocks=cfg.n_blocks,
-                                    shared_eps=cfg.shared_eps)).to(device)
+                                    shared_eps=cfg.shared_eps, cond_mask=cfg.cond_mask)).to(device)
+    step_thz = float(np.mean(np.diff(ds.freq)))
     opt = torch.optim.AdamW(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay, eps=cfg.adam_eps)
     reduce_lr = ReduceLROnPlateau(opt, cfg.reduce_lr_factor, cfg.reduce_lr_patience, cfg.reduce_lr_min_delta)
     early = EarlyStopping(model, cfg.early_stop_patience, restore_best=cfg.restore_best)
@@ -138,6 +165,8 @@ def train(cfg: TrainConfig, data_path, out_dir, seed=0, device=None, verbose=Tru
             for i in range(0, len(perm), batch_size):
                 idx = perm[i:i + batch_size]
                 xb, yb = x_tr[idx], y_tr[idx]
+                if cfg.cond_mask:
+                    yb = random_care_masks(yb, cfg, step_thz, gen)
                 pred, mu, logvar = model(xb, yb)
                 loss, recon, kl = reference_loss(xb, pred, mu, logvar, cfg.beta)
                 opt.zero_grad(set_to_none=True)
